@@ -40,9 +40,9 @@ func main() {
 
 	fmt.Println("Latest block number:", parseHex(blockNumber))
 
-	// Fetch block by number
+	// Fetch last finalized block
 	var block map[string]interface{}
-	err = client.CallContext(context.Background(), &block, "eth_getBlockByNumber", "latest", true)
+	err = client.CallContext(context.Background(), &block, "eth_getBlockByNumber", "finalized", true)
 	if err != nil {
 		log.Fatalf("Failed to retrieve block: %v", err)
 	}
@@ -58,9 +58,11 @@ func main() {
 	fmt.Println("Timestamp:", dateTimeFormat(parseHex(block["timestamp"].(string))))
 
 	transactions := block["transactions"].([]interface{})
-	lastTransaction := transactions[len(transactions)-1]
+	lastTransaction := transactions[len(transactions)-1].(map[string]interface{})
 
+	fmt.Println("Last finalized block:", parseHex(lastTransaction["blockNumber"].(string)))
 	fmt.Printf("Last Transaction: %+v\n", lastTransaction)
+	fmt.Printf("TransactionRoot: %+v\n", block["transactionsRoot"])
 }
 
 func parseHex(hexStr string) int64 {
