@@ -1,14 +1,15 @@
 package main
 
 import (
-	"context"
+	"bufio"
 	"fmt"
+	"internal/eth"
 	"log"
 	"os"
-	"strconv"
+	"os/exec"
+	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/joho/godotenv"
 )
 
@@ -24,56 +25,75 @@ func main() {
 		log.Fatal("Missing INFURA_API_KEY env var")
 	}
 
-	// Connect to the Ethereum node (use your local node or an Infura endpoint)
-	client, err := rpc.Dial("https://mainnet.infura.io/v3/" + apiKey)
-	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
-	}
-	defer client.Close()
+	ethClient := eth.NewEthClient(apiKey)
+	defer ethClient.Close()
 
-	// Fetch the latest block number
-	var blockNumber string
-	err = client.CallContext(context.Background(), &blockNumber, "eth_blockNumber")
-	if err != nil {
-		log.Fatalf("Failed to retrieve the latest block number: %v", err)
-	}
-
-	fmt.Println("Latest block number:", parseHex(blockNumber))
-
-	// Fetch last finalized block
-	var block map[string]interface{}
-	err = client.CallContext(context.Background(), &block, "eth_getBlockByNumber", "finalized", true)
-	if err != nil {
-		log.Fatalf("Failed to retrieve block: %v", err)
-	}
-
-	var blockKeys []string
-
-	for key := range block {
-		blockKeys = append(blockKeys, key)
-	}
-
-	// Print block details
-	fmt.Println("Keys:", blockKeys)
-	fmt.Println("Timestamp:", dateTimeFormat(parseHex(block["timestamp"].(string))))
-
-	transactions := block["transactions"].([]interface{})
-	lastTransaction := transactions[len(transactions)-1].(map[string]interface{})
-
-	fmt.Println("Last finalized block:", parseHex(lastTransaction["blockNumber"].(string)))
-	fmt.Printf("Last Transaction: %+v\n", lastTransaction)
-	fmt.Printf("TransactionRoot: %+v\n", block["transactionsRoot"])
+	promptLoop(ethClient)
 }
 
-func parseHex(hexStr string) int64 {
-	intValue, err := strconv.ParseInt(hexStr[2:], 16, 64)
-	if err != nil {
-		// Handle the error
-		fmt.Println("Error:", err)
-		return -1
+func promptLoop(ethClient *eth.EthClient) {
+	reader := bufio.NewScanner(os.Stdin)
+	fmt.Print("> ")
+	for reader.Scan() {
+		text := strings.TrimSpace(reader.Text())
+		if text == "exit" {
+			// Close the program
+			return
+		} else {
+			handleCommand(text, ethClient)
+		}
+		fmt.Print("> ")
 	}
+}
 
-	return intValue
+// Executes the given command
+func handleCommand(text string, eth *eth.EthClient) {
+	switch text {
+	case "clear":
+		clearScreen()
+	case "help":
+		displayHelp()
+	case "blockNumber":
+		blockNumber := eth.LastestBlockNumber()
+		fmt.Println("Latest block number:", blockNumber)
+
+	case "lastFinalizedBlock":
+		block := eth.BlockByNumber("finalized")
+		fmt.Println("Keys:", block.BlockKeys())
+		fmt.Println("Timestamp:", dateTimeFormat(block.Timestamp()))
+
+	case "lastFinalizedTx":
+		block := eth.BlockByNumber("finalized")
+		lastTransaction := block.LastTransaction()
+		fmt.Println("Last finalized block number:", lastTransaction.BlockNumber())
+		fmt.Printf("Keys: %+v\n", lastTransaction.TxKeys())
+		fmt.Println("Hash:", lastTransaction.GetString("hash"))
+		fmt.Println("Gas:", lastTransaction.Gas())
+		fmt.Println("GasPrice:", lastTransaction.GasPrice())
+		fmt.Printf("Input: %+v\n", lastTransaction.GetString("input"))
+	default:
+		fmt.Println(text, ": command not found")
+	}
+}
+
+// Shows the available commands
+func displayHelp() {
+	fmt.Printf("This is a CLI to retrieve Ethereum data.\n\n")
+	fmt.Println("Available commands:")
+
+	fmt.Println("blockNumber        - Gets the latest block number")
+	fmt.Println("lastFinalizedBlock - Gets the last finalized block")
+	fmt.Println("lastFinalizedTx    - Gets the last tx from finalized number")
+	fmt.Println("clear - Clear the terminal screen")
+	fmt.Println("help  - Show available commands")
+	fmt.Println("exit  - Closes this program")
+}
+
+// Clears the terminal screen
+func clearScreen() {
+	cmd := exec.Command("clear")
+	cmd.Stdout = os.Stdout
+	cmd.Run()
 }
 
 func dateTimeFormat(timestamp int64) string {
