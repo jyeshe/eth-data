@@ -21,15 +21,15 @@ func (t *EthTx) TxKeys() []string {
 }
 
 func (t *EthTx) BlockNumber() int64 {
-	return parseHex(t.tx["blockNumber"].(string))
+	return ParseHex(t.tx["blockNumber"].(string))
 }
 
 func (t *EthTx) Gas() int64 {
-	return parseHex(t.tx["gas"].(string))
+	return ParseHex(t.tx["gas"].(string))
 }
 
 func (t *EthTx) GasPrice() int64 {
-	return parseHex(t.tx["gasPrice"].(string))
+	return ParseHex(t.tx["gasPrice"].(string))
 }
 
 func (t *EthTx) GetString(field string) string {

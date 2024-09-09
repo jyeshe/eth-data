@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"internal/eth"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"strings"
@@ -47,29 +48,38 @@ func promptLoop(ethClient *eth.EthClient) {
 }
 
 // Executes the given command
-func handleCommand(text string, eth *eth.EthClient) {
+func handleCommand(text string, ethClient *eth.EthClient) {
 	switch text {
 	case "clear":
 		clearScreen()
 	case "help":
 		displayHelp()
 	case "blockNumber":
-		blockNumber := eth.LastestBlockNumber()
+		blockNumber := ethClient.LastestBlockNumber()
 		fmt.Println("Latest block number:", blockNumber)
 
 	case "lastFinalizedBlock":
-		block := eth.BlockByNumber("finalized")
+		block := ethClient.BlockByNumber("finalized")
 		fmt.Println("Keys:", block.BlockKeys())
 		fmt.Println("Timestamp:", dateTimeFormat(block.Timestamp()))
 
 	case "lastFinalizedTx":
-		block := eth.BlockByNumber("finalized")
+		block := ethClient.BlockByNumber("finalized")
 		lastTransaction := block.LastTransaction()
 		fmt.Println("Last finalized block number:", lastTransaction.BlockNumber())
+		fmt.Printf("Dump: %+v\n", lastTransaction)
 		fmt.Printf("Keys: %+v\n", lastTransaction.TxKeys())
 		fmt.Println("Hash:", lastTransaction.GetString("hash"))
 		fmt.Println("Gas:", lastTransaction.Gas())
 		fmt.Println("GasPrice:", lastTransaction.GasPrice())
+		fmt.Println("BaseFeePerGas:", block.BaseFeePerGas())
+		fmt.Println("MaxTipPerGas:", eth.ParseHex(lastTransaction.GetString("maxPriorityFeePerGas")))
+		fmt.Println("MaxFeePerGas:", eth.ParseHex(lastTransaction.GetString("maxFeePerGas")))
+
+		gasPrice1 := block.BaseFeePerGas() + eth.ParseHex(lastTransaction.GetString("maxPriorityFeePerGas"))
+		gasPrice2 := eth.ParseHex(lastTransaction.GetString("maxFeePerGas"))
+
+		fmt.Println("EffectiveGasPrice:", math.Min(float64(gasPrice1), float64(gasPrice2)))
 		fmt.Printf("Input: %+v\n", lastTransaction.GetString("input"))
 	default:
 		fmt.Println(text, ": command not found")

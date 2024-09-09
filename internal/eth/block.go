@@ -21,7 +21,11 @@ func (b *EthBlock) BlockKeys() []string {
 }
 
 func (b *EthBlock) Timestamp() int64 {
-	return parseHex(b.block["timestamp"].(string))
+	return ParseHex(b.block["timestamp"].(string))
+}
+
+func (b *EthBlock) BaseFeePerGas() int64 {
+	return ParseHex(b.block["baseFeePerGas"].(string))
 }
 
 func (b *EthBlock) LastTransaction() *EthTx {
@@ -29,4 +33,8 @@ func (b *EthBlock) LastTransaction() *EthTx {
 	lastTransaction := transactions[len(transactions)-1].(map[string]interface{})
 
 	return NewTx(lastTransaction)
+}
+
+func (b *EthBlock) GetString(field string) string {
+	return b.block[field].(string)
 }

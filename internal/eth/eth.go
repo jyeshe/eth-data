@@ -2,9 +2,7 @@ package eth
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"strconv"
 
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -36,7 +34,7 @@ func (c *EthClient) LastestBlockNumber() int64 {
 		log.Fatalf("Failed to retrieve the latest block number: %v", err)
 	}
 
-	return parseHex(blockNumber)
+	return ParseHex(blockNumber)
 }
 
 func (c *EthClient) BlockByNumber(number string) *EthBlock {
@@ -52,15 +50,4 @@ func (c *EthClient) BlockByNumber(number string) *EthBlock {
 
 func (c *EthClient) Close() {
 	c.rpcClient.Close()
-}
-
-func parseHex(hexStr string) int64 {
-	intValue, err := strconv.ParseInt(hexStr[2:], 16, 64)
-	if err != nil {
-		// Handle the error
-		fmt.Println("Error:", err)
-		return -1
-	}
-
-	return intValue
 }
