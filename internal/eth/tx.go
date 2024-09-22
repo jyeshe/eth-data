@@ -33,5 +33,14 @@ func (t *EthTx) GasPrice() int64 {
 }
 
 func (t *EthTx) GetString(field string) string {
-	return t.tx[field].(string)
+	value := t.tx[field]
+	if value == nil {
+		return ""
+	} else {
+		return value.(string)
+	}
+}
+
+func (t *EthTx) GetAll() *map[string]interface{} {
+	return &t.tx
 }

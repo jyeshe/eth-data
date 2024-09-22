@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"eth_data/internal/cmd"
+	"eth_data/internal/db"
+	"eth_data/internal/eth"
 	"fmt"
-	"internal/eth"
 	"log"
 	"math"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,18 +18,24 @@ import (
 )
 
 func main() {
+	db, err := db.Open("data")
+	if err != nil {
+		log.Fatalf("Failed to open the database: %v", err)
+	}
+	defer db.Close()
+
 	// Load the .env file
-	err := godotenv.Load()
+	err = godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
 
-	apiKey := os.Getenv("INFURA_API_KEY")
-	if apiKey == "" {
-		log.Fatal("Missing INFURA_API_KEY env var")
+	secretUrl := os.Getenv("SECRET_URL")
+	if secretUrl == "" {
+		log.Fatal("Missing SECRET_URL env var")
 	}
 
-	ethClient := eth.NewEthClient(apiKey)
+	ethClient := eth.NewEthClient(secretUrl)
 	defer ethClient.Close()
 
 	promptLoop(ethClient)
@@ -49,41 +58,89 @@ func promptLoop(ethClient *eth.EthClient) {
 
 // Executes the given command
 func handleCommand(text string, ethClient *eth.EthClient) {
-	switch text {
+	// text := "fetchWalletTxs 0x0839D7318603205fEF3340f365b087A5F92c6Df8 20804500 20804599"
+	command, args := parseCommand(text)
+
+	switch command {
 	case "clear":
 		clearScreen()
 	case "help":
 		displayHelp()
 	case "blockNumber":
-		blockNumber := ethClient.LastestBlockNumber()
-		fmt.Println("Latest block number:", blockNumber)
+		blockNumber, err := ethClient.LastestBlockNumber()
+		if err == nil {
+			fmt.Println("Latest block number:", blockNumber)
+		} else {
+			fmt.Printf("Error: %+v\n", err)
+		}
+
+	case "blockByNumber":
+		block, err := ethClient.BlockByNumber(args[0])
+		if err == nil {
+			fmt.Printf("Dump: %+v\n", block)
+		} else {
+			fmt.Printf("Error: %+v\n", err)
+		}
 
 	case "lastFinalizedBlock":
-		block := ethClient.BlockByNumber("finalized")
-		fmt.Println("Keys:", block.BlockKeys())
-		fmt.Println("Timestamp:", dateTimeFormat(block.Timestamp()))
+		block, err := ethClient.BlockByNumber("finalized")
+		if err == nil {
+			fmt.Println("Keys:", block.BlockKeys())
+			fmt.Println("Timestamp:", dateTimeFormat(block.Timestamp()))
+		} else {
+			fmt.Printf("Error: %+v\n", err)
+		}
 
 	case "lastFinalizedTx":
-		block := ethClient.BlockByNumber("finalized")
-		lastTransaction := block.LastTransaction()
-		fmt.Println("Last finalized block number:", lastTransaction.BlockNumber())
-		fmt.Printf("Dump: %+v\n", lastTransaction)
-		fmt.Printf("Keys: %+v\n", lastTransaction.TxKeys())
-		fmt.Println("Hash:", lastTransaction.GetString("hash"))
-		fmt.Println("Gas:", lastTransaction.Gas())
-		fmt.Println("GasPrice:", lastTransaction.GasPrice())
-		fmt.Println("BaseFeePerGas:", block.BaseFeePerGas())
-		fmt.Println("MaxTipPerGas:", eth.ParseHex(lastTransaction.GetString("maxPriorityFeePerGas")))
-		fmt.Println("MaxFeePerGas:", eth.ParseHex(lastTransaction.GetString("maxFeePerGas")))
+		block, err := ethClient.BlockByNumber("finalized")
+		if err == nil {
+			lastTransaction := block.LastTransaction()
+			fmt.Println("Last finalized block number:", lastTransaction.BlockNumber())
+			fmt.Printf("Dump: %+v\n", lastTransaction)
+			fmt.Printf("Keys: %+v\n", lastTransaction.TxKeys())
+			fmt.Println("Hash:", lastTransaction.GetString("hash"))
+			fmt.Println("Gas:", lastTransaction.Gas())
+			fmt.Println("GasPrice:", lastTransaction.GasPrice())
+			fmt.Println("BaseFeePerGas:", block.BaseFeePerGas())
+			fmt.Println("MaxTipPerGas:", eth.ParseHex(lastTransaction.GetString("maxPriorityFeePerGas")))
+			fmt.Println("MaxFeePerGas:", eth.ParseHex(lastTransaction.GetString("maxFeePerGas")))
 
-		gasPrice1 := block.BaseFeePerGas() + eth.ParseHex(lastTransaction.GetString("maxPriorityFeePerGas"))
-		gasPrice2 := eth.ParseHex(lastTransaction.GetString("maxFeePerGas"))
+			gasPrice1 := block.BaseFeePerGas() + eth.ParseHex(lastTransaction.GetString("maxPriorityFeePerGas"))
+			gasPrice2 := eth.ParseHex(lastTransaction.GetString("maxFeePerGas"))
 
-		fmt.Println("EffectiveGasPrice:", math.Min(float64(gasPrice1), float64(gasPrice2)))
-		fmt.Printf("Input: %+v\n", lastTransaction.GetString("input"))
+			fmt.Println("EffectiveGasPrice:", math.Min(float64(gasPrice1), float64(gasPrice2)))
+			fmt.Printf("Input: %+v\n", lastTransaction.GetString("input"))
+		} else {
+			fmt.Printf("Error: %+v\n", err)
+		}
+	case "fetchWalletTxs":
+		if len(args) != 3 {
+			fmt.Println("Usage: fetchWalletTxs <walletAddress> <firstBlockInt> <lastBlockInt>")
+		} else {
+			walletAddress := strings.ToLower(args[0])
+			firstBlock, err := strconv.ParseInt(args[1], 10, 64)
+			if err != nil {
+				fmt.Println("Usage: fetchWalletTxs <walletAddress> <firstBlockInt> <lastBlockInt>")
+			} else {
+				lastBlock, err := strconv.ParseInt(args[2], 10, 64)
+				if err != nil {
+					fmt.Println("Usage: fetchWalletTxs <walletAddress> <firstBlockInt> <lastBlockInt>")
+				} else {
+					cmd.FetchWalletTxsCmd(ethClient, walletAddress, firstBlock, lastBlock)
+				}
+			}
+		}
+
 	default:
 		fmt.Println(text, ": command not found")
 	}
+}
+
+func parseCommand(text string) (string, []string) {
+	parts := strings.Split(text, " ")
+	command := parts[0]
+	args := parts[1:]
+	return command, args
 }
 
 // Shows the available commands

@@ -35,6 +35,17 @@ func (b *EthBlock) LastTransaction() *EthTx {
 	return NewTx(lastTransaction)
 }
 
+func (b *EthBlock) Transactions() []*EthTx {
+	transactions := b.block["transactions"].([]interface{})
+	var ethTxs []*EthTx = make([]*EthTx, len(transactions))
+
+	for i, tx := range transactions {
+		ethTxs[i] = NewTx(tx.(map[string]interface{}))
+	}
+
+	return ethTxs
+}
+
 func (b *EthBlock) GetString(field string) string {
 	return b.block[field].(string)
 }
