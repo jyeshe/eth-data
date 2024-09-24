@@ -30,29 +30,31 @@ func (c *RateLimiter) AllowedAfter(requestCredits int, retryWait ...time.Duratio
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	if !c.allowed(requestCredits) {
-		var retryAfter time.Duration
-
-		if len(retryWait) > 0 {
-			retryAfter = retryWait[0]
-		} else {
-			retryAfter = c.window + 50*time.Millisecond
-		}
-
-		if retryAfter == 0 {
-			return time.Until(c.timestamp.Add(c.window))
-		} else {
-			// TODO: implement sliding window
-			// For now sleeps with the lock to avoid starvation
-			time.Sleep(retryAfter)
-
-			if !c.allowed(requestCredits) {
-				return time.Until(c.timestamp.Add(c.window))
-			}
-		}
+	if c.allowed(requestCredits) {
+		return 0
 	}
 
-	return 0
+	var retryAfter time.Duration
+
+	if len(retryWait) > 0 {
+		retryAfter = retryWait[0]
+	} else {
+		retryAfter = c.window + 50*time.Millisecond
+	}
+
+	if retryAfter == 0 {
+		return time.Until(c.timestamp.Add(c.window))
+	} else {
+		// TODO: implement sliding window
+		// For now sleeps with the lock to avoid starvation
+		time.Sleep(retryAfter)
+
+		if c.allowed(requestCredits) {
+			return 0
+		} else {
+			return time.Until(c.timestamp.Add(c.window))
+		}
+	}
 }
 
 func (c *RateLimiter) allowed(requestCredits int) bool {
